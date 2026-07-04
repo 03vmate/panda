@@ -51,18 +51,10 @@ void set_safety_mode(uint16_t mode, uint16_t param) {
   safety_tx_blocked = 0;
   safety_rx_invalid = 0;
 
+  // The intercept relay is never driven, so it stays closed and the panda
+  // remains passive on the bus in every mode.
   switch (mode_copy) {
-    case SAFETY_SILENT:
-      set_intercept_relay(false, false);
-      current_board->set_can_mode(CAN_MODE_NORMAL);
-      can_silent = true;
-      break;
-    case SAFETY_NOOUTPUT:
-      set_intercept_relay(false, false);
-      current_board->set_can_mode(CAN_MODE_NORMAL);
-      can_silent = false;
-      break;
-    case SAFETY_ELM327:
+    case SAFETY_HYBRID_ASSISTANT:
       set_intercept_relay(false, false);
       heartbeat_counter = 0U;
       heartbeat_lost = false;
@@ -70,29 +62,27 @@ void set_safety_mode(uint16_t mode, uint16_t param) {
       // Clear any pending messages in the can core (i.e. sending while comma power is unplugged)
       // TODO: rewrite using hardware queues rather than fifo to cancel specific messages
       can_clear_send(CANIF_FROM_CAN_NUM(1), 1);
-      if (param == 0U) {
-        current_board->set_can_mode(CAN_MODE_OBD_CAN2);
-      } else {
-        current_board->set_can_mode(CAN_MODE_NORMAL);
-      }
+
+      // param 0 multiplexes bus 1 onto the OBD-II port's main CAN
+      current_board->set_can_mode((param == 0U) ? CAN_MODE_OBD_CAN2 : CAN_MODE_NORMAL);
       can_silent = false;
       break;
+    case SAFETY_SILENT:
     default:
-      set_intercept_relay(true, false);
-      heartbeat_counter = 0U;
-      heartbeat_lost = false;
+      // SILENT, and any unexpected mode, receives only and never transmits.
+      set_intercept_relay(false, false);
       current_board->set_can_mode(CAN_MODE_NORMAL);
-      can_silent = false;
+      can_silent = true;
       break;
   }
   can_init_all();
 }
 
 bool is_car_safety_mode(uint16_t mode) {
-  return (mode != SAFETY_SILENT) &&
-         (mode != SAFETY_NOOUTPUT) &&
-         (mode != SAFETY_ALLOUTPUT) &&
-         (mode != SAFETY_ELM327);
+  // The Hybrid Assistant mode is treated as a car safety mode so the heartbeat
+  // check cannot be disabled by the host (0xf8); SILENT is restored if the host
+  // stops responding.
+  return mode == SAFETY_HYBRID_ASSISTANT;
 }
 
 // ***************************** main code *****************************

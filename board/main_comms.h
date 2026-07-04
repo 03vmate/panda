@@ -224,7 +224,13 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
       break;
     // **** 0xdc: set safety mode
     case 0xdc:
-      set_safety_mode(req->param1, (uint16_t)req->param2);
+      // Only the Hybrid Assistant mode and SILENT may be requested; any other
+      // request falls back to SILENT.
+      if ((req->param1 == SAFETY_HYBRID_ASSISTANT) || (req->param1 == SAFETY_SILENT)) {
+        set_safety_mode(req->param1, (uint16_t)req->param2);
+      } else {
+        set_safety_mode(SAFETY_SILENT, 0U);
+      }
       break;
     // **** 0xdd: get health and CAN packet versions
     case 0xdd: {
