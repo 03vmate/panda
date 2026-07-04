@@ -79,6 +79,12 @@ def build_project(project_name, project, main, extra_flags):
     "-fsingle-precision-constant",
     "-Os",
     "-g",
+    # unreferenced code/data (e.g. removed safety modes) is dropped from the
+    # image. the linker script KEEPs .isr_vector and the init arrays, so this
+    # is safe.
+    "-ffunction-sections",
+    "-fdata-sections",
+    "-Wl,--gc-sections",
   ]
 
   env = Environment(
